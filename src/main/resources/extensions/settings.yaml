@@ -1,0 +1,263 @@
+apiVersion: v1alpha1
+kind: Setting
+metadata:
+  name: storage-toolkit-settings
+spec:
+  forms:
+    - group: global
+      label: 全局设置
+      formSchema:
+        - $formkit: group
+          name: basic
+          label: 基本设置
+          children:
+            - $formkit: checkbox
+              id: imageProcessingEnabled
+              key: imageProcessingEnabled
+              name: imageProcessingEnabled
+              label: 启用图片处理
+              value: false
+              help: 启用后将自动处理上传的图片
+            
+            - $formkit: checkbox
+              if: "$get(imageProcessingEnabled).value"
+              name: processEditorImages
+              label: 处理编辑器图片
+              value: false
+              help: 启用后将处理文章/页面编辑器中粘贴或拖拽上传的图片
+            
+            - $formkit: select
+              if: "$get(imageProcessingEnabled).value"
+              name: targetPolicy
+              label: 目标存储策略
+              clearable: true
+              searchable: true
+              placeholder: 选择存储策略（留空则处理所有策略）
+              action: /apis/storage.halo.run/v1alpha1/policies
+              requestOption:
+                method: GET
+                labelField: spec.displayName
+                valueField: metadata.name
+              help: 选择需要处理的存储策略，留空则处理所有策略
+            
+            - $formkit: select
+              if: "$get(imageProcessingEnabled).value"
+              name: targetGroups
+              label: 目标分组
+              multiple: true
+              clearable: true
+              searchable: true
+              placeholder: 选择分组（留空则处理所有分组）
+              action: /apis/storage.halo.run/v1alpha1/groups
+              requestOption:
+                method: GET
+                labelField: spec.displayName
+                valueField: metadata.name
+              value: []
+              help: 选择需要处理的分组，可多选，留空则处理所有分组
+
+    - group: imageProcessing
+      label: 图片处理
+      formSchema:
+        # 文件过滤
+        - $formkit: group
+          name: fileFilter
+          label: 文件过滤
+          children:
+            - $formkit: text
+              name: allowedFormats
+              label: 允许的格式
+              value: "jpeg,png,gif,webp"
+              help: 仅处理这些格式的图片，多个格式用逗号分隔
+            
+            - $formkit: number
+              name: minFileSize
+              label: 最小文件大小（KB）
+              value: 0
+              min: 0
+              help: 仅处理大于此大小的文件，0 表示不限制
+            
+            - $formkit: number
+              name: maxFileSize
+              label: 最大文件大小（KB）
+              value: 0
+              min: 0
+              help: 仅处理小于此大小的文件，0 表示不限制
+
+        # 格式转换
+        - $formkit: group
+          name: formatConversion
+          label: 格式转换
+          children:
+            - $formkit: checkbox
+              id: formatConversionEnabled
+              key: formatConversionEnabled
+              name: enabled
+              label: 启用格式转换
+              value: false
+              help: 将图片转换为指定格式以优化加载性能
+            
+            - $formkit: radio
+              if: "$get(formatConversionEnabled).value === true"
+              name: targetFormat
+              label: 目标格式
+              value: WEBP
+              options:
+                - label: WebP（推荐，兼容性好，压缩率高）
+                  value: WEBP
+            
+            - $formkit: range
+              if: "$get(formatConversionEnabled).value === true"
+              name: outputQuality
+              id: outputQuality
+              key: outputQuality
+              label: 输出质量（数值越高质量越好，文件越大）
+              value: 85
+              min: 1
+              max: 100
+              help: $get(outputQuality).value
+
+        # 水印设置
+        - $formkit: group
+          name: watermark
+          label: 水印设置
+          children:
+            - $formkit: checkbox
+              id: watermarkEnabled
+              key: watermarkEnabled
+              name: enabled
+              label: 启用水印
+              value: false
+              help: 为图片添加水印
+            
+            - $formkit: radio
+              if: "$get(watermarkEnabled).value === true"
+              id: watermarkType
+              key: watermarkType
+              name: type
+              label: 水印类型
+              value: TEXT
+              options:
+                - label: 文字水印
+                  value: TEXT
+                - label: 图片水印
+                  value: IMAGE
+            
+            # 文字水印配置
+            - $formkit: text
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT'"
+              id: watermarkText
+              key: watermarkText
+              name: text
+              label: 水印文字
+              value: ""
+            
+            - $formkit: number
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT'"
+              id: watermarkFontSize
+              key: watermarkFontSize
+              name: fontSize
+              label: 字体大小
+              value: 25
+              min: 12
+              max: 200
+              help: 字体大小（12-200 像素）
+            
+            - $formkit: color
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT'"
+              id: watermarkColor
+              key: watermarkColor
+              name: color
+              label: 字体颜色
+              value: "#b4b4b4"
+            
+            # 图片水印配置
+            - $formkit: attachment
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'IMAGE'"
+              name: imageUrl
+              id: watermarkImageUrl
+              key: watermarkImageUrl
+              label: 水印图片
+              value: ""
+              help: 上传或选择水印图片（支持 PNG、JPEG、WebP 格式）
+            
+            - $formkit: range
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'IMAGE'"
+              name: imageScale
+              id: watermarkImageScale
+              key: watermarkImageScale
+              label: 水印缩放比例（水印图片相对于原图的比例 %）
+              value: 20
+              min: 1
+              max: 100
+              help: $get(watermarkImageScale).value
+            
+            # 通用水印配置
+            - $formkit: select
+              if: "$get(watermarkEnabled).value === true"
+              name: position
+              label: 水印位置
+              value: BOTTOM_RIGHT
+              options:
+                - label: 左上
+                  value: TOP_LEFT
+                - label: 中上
+                  value: TOP_CENTER
+                - label: 右上
+                  value: TOP_RIGHT
+                - label: 左中
+                  value: MIDDLE_LEFT
+                - label: 居中
+                  value: MIDDLE_CENTER
+                - label: 右中
+                  value: MIDDLE_RIGHT
+                - label: 左下
+                  value: BOTTOM_LEFT
+                - label: 中下
+                  value: BOTTOM_CENTER
+                - label: 右下
+                  value: BOTTOM_RIGHT
+            
+            - $formkit: range
+              if: "$get(watermarkEnabled).value === true"
+              name: opacity
+              id: watermarkOpacity
+              key: watermarkOpacity
+              label: 透明度（0 为完全透明，100 为完全不透明 %）
+              value: 50
+              min: 0
+              max: 100
+              help: $get(watermarkOpacity).value
+            
+            - $formkit: range
+              if: "$get(watermarkEnabled).value === true"
+              name: marginX
+              id: watermarkMarginX
+              key: watermarkMarginX
+              label: X 边距（水印距离边缘的水平距离 %）
+              value: 5
+              min: 0
+              max: 50
+              help: $get(watermarkMarginX).value
+            
+            - $formkit: range
+              if: "$get(watermarkEnabled).value === true"
+              name: marginY
+              id: watermarkMarginY
+              key: watermarkMarginY
+              label: Y 边距（水印距离边缘的垂直距离 %）
+              value: 5
+              min: 0
+              max: 50
+              help: $get(watermarkMarginY).value
+
+    - group: log
+      label: 日志设置
+      formSchema:
+        - $formkit: number
+          name: logRetentionDays
+          label: 日志保留天数
+          value: 30
+          min: 1
+          max: 365
+          help: 超过此天数的日志将被自动清理（1-365 天）

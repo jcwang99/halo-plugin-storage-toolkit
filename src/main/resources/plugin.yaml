@@ -1,0 +1,25 @@
+# Refer https://docs.halo.run/developer-guide/plugin/basics/manifest
+
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  # The name defines how the plugin is invoked, A unique name
+  name: storage-toolkit
+spec:
+  enabled: true
+  version: "0.0.1"
+  requires: ">=2.21.0"
+  author:
+    name: Tim0x0
+    website: https://github.com/Tim0x0
+  logo: logo.png
+  homepage: https://github.com/Tim0x0/halo-plugin-storage-toolkit#readme
+  repo: https://github.com/Tim0x0/halo-plugin-storage-toolkit
+  issues: https://github.com/Tim0x0/halo-plugin-storage-toolkit/issues
+  displayName: "存储工具箱"
+  description: "Halo 存储增强插件 - 支持图片处理、格式转换、水印添加等功能"
+  license:
+    - name: "GPL-3.0"
+      url: "https://github.com/Tim0x0/halo-plugin-storage-toolkit/blob/main/LICENSE"
+  settingName: "storage-toolkit-settings"
+  configMapName: "storage-toolkit-configmap"
