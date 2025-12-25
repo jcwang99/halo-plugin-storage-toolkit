@@ -80,9 +80,9 @@ spec:
             - $formkit: number
               name: maxFileSize
               label: 最大文件大小（KB）
-              value: 0
+              value: 10240
               min: 0
-              help: 仅处理小于此大小的文件，0 表示不限制
+              help: 仅处理小于此大小的文件，0 表示不限制。建议设置合理上限（如 10240KB），过大的图片处理时会占用大量内存
 
         # 格式转换
         - $formkit: group

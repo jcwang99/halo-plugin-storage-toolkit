@@ -47,8 +47,9 @@ public class ProcessingConfig {
     
     /**
      * 最大文件大小（字节），0 表示不限制
+     * 默认 10MB，过大的图片处理时会占用大量内存
      */
-    private long maxFileSize = 0;
+    private long maxFileSize = 10 * 1024 * 1024;
     
     // ========== 水印设置 ==========
     
