@@ -2,6 +2,7 @@ package com.timxs.storagetoolkit.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.timxs.storagetoolkit.config.*;
+import com.timxs.storagetoolkit.model.FontSizeMode;
 import com.timxs.storagetoolkit.model.ImageFormat;
 import com.timxs.storagetoolkit.model.WatermarkPosition;
 import com.timxs.storagetoolkit.model.WatermarkType;
@@ -46,7 +47,7 @@ public class SettingsManagerImpl implements SettingsManager {
     /**
      * JSON 解析器
      */
-    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = run.halo.app.infra.utils.JsonUtils.mapper();
 
     /**
      * 获取当前配置
@@ -93,12 +94,18 @@ public class SettingsManagerImpl implements SettingsManager {
                 JsonNode basic = setting.get("basic");
                 if (basic != null) {
                     config.setEnabled(getBoolean(basic, "imageProcessingEnabled", false));
-                    config.setTargetPolicy(getString(basic, "targetPolicy", ""));
                     config.setProcessEditorImages(getBoolean(basic, "processEditorImages", false));
+                    List<String> policies = getStringList(basic, "targetPolicies");
+                    if (policies != null && !policies.isEmpty()) {
+                        config.setTargetPolicies(policies);
+                    }
                     List<String> groups = getStringList(basic, "targetGroups");
                     if (groups != null && !groups.isEmpty()) {
                         config.setTargetGroups(groups);
                     }
+                    // 图片处理并发数
+                    int concurrency = getInt(basic, "imageProcessingConcurrency", 3);
+                    config.setImageProcessingConcurrency(Math.max(1, Math.min(10, concurrency)));
                 }
             })
             .thenReturn(true)
@@ -140,7 +147,13 @@ public class SettingsManagerImpl implements SettingsManager {
                     } catch (IllegalArgumentException e) {
                         format.setTargetFormat(ImageFormat.WEBP);
                     }
-                    format.setOutputQuality(getInt(formatNode, "outputQuality", 85));
+                    format.setOutputQuality(getInt(formatNode, "outputQuality", 75));
+                    
+                    // 智能跳过配置
+                    format.setSkipIfLarger(getBoolean(formatNode, "skipIfLarger", true));
+                    // 跳过阈值（0-50%）
+                    int threshold = getInt(formatNode, "skipThreshold", 0);
+                    format.setSkipThreshold(Math.max(0, Math.min(50, threshold)));
                 }
                 
                 // 水印设置（嵌套在 watermark 下）
@@ -176,6 +189,18 @@ public class SettingsManagerImpl implements SettingsManager {
                     watermark.setOpacity(getInt(watermarkNode, "opacity", 50));
                     watermark.setFontSize(getInt(watermarkNode, "fontSize", 25));
                     watermark.setColor(getString(watermarkNode, "color", "#b4b4b4"));
+                    
+                    // 字体大小模式（FIXED 或 ADAPTIVE）
+                    String fontSizeModeStr = getString(watermarkNode, "fontSizeMode", "FIXED");
+                    try {
+                        watermark.setFontSizeMode(FontSizeMode.valueOf(fontSizeModeStr));
+                    } catch (IllegalArgumentException e) {
+                        watermark.setFontSizeMode(FontSizeMode.FIXED);
+                    }
+                    // 字体缩放比例（1-10%）
+                    int fontScale = getInt(watermarkNode, "fontScale", 4);
+                    watermark.setFontScale(Math.max(1, Math.min(10, fontScale)));
+                    
                     // 边距是百分比（0-50）
                     watermark.setMarginX(getDouble(watermarkNode, "marginX", 5));
                     watermark.setMarginY(getDouble(watermarkNode, "marginY", 5));

@@ -18,9 +18,9 @@ public class ProcessingConfig {
     private boolean enabled = false;
     
     /**
-     * 目标存储策略（为空则处理所有策略）
+     * 目标存储策略列表（为空则处理所有策略）
      */
-    private String targetPolicy = "";
+    private List<String> targetPolicies = List.of();
     
     /**
      * 是否处理编辑器中上传的图片（UC API）
@@ -32,6 +32,12 @@ public class ProcessingConfig {
      * 目标分组列表（为空则处理所有分组）
      */
     private List<String> targetGroups = List.of();
+    
+    /**
+     * 图片处理并发数
+     * 限制同时处理的图片数量，防止内存溢出
+     */
+    private int imageProcessingConcurrency = 3;
     
     // ========== 文件过滤 ==========
     

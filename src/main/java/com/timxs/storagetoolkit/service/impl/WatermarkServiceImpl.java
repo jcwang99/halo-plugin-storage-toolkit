@@ -62,16 +62,16 @@ public class WatermarkServiceImpl implements WatermarkService {
             int maxTextWidth = Math.max(1, (int) (image.getWidth() * 0.8) - marginX * 2);
             int maxTextHeight = Math.max(1, (int) (image.getHeight() * 0.8) - marginY * 2);
             
-            // 自适应字体大小
-            int fontSize = config.fontSize();
+            // 使用 calculateFontSize 计算字体大小（支持 FIXED 和 ADAPTIVE 模式）
+            int fontSize = config.calculateFontSize(image.getWidth(), image.getHeight());
             Font font = new Font(config.fontName(), Font.BOLD, fontSize);
             g2d.setFont(font);
             FontMetrics metrics = g2d.getFontMetrics();
             int textWidth = metrics.stringWidth(config.text());
             int textHeight = metrics.getHeight();
             
-            // 如果水印太大，自动缩小字体（最小 8px）
-            int minFontSize = 8;
+            // 如果水印太大，自动缩小字体（最小 12px）
+            int minFontSize = 12;
             while ((textWidth > maxTextWidth || textHeight > maxTextHeight) && fontSize > minFontSize) {
                 fontSize -= 2;
                 font = new Font(config.fontName(), Font.BOLD, fontSize);
@@ -81,16 +81,14 @@ public class WatermarkServiceImpl implements WatermarkService {
                 textHeight = metrics.getHeight();
             }
             
-            // 如果字体已经最小但水印仍然太大，跳过水印
+            // 如果字体已经最小但水印仍然太大，抛出异常让调用方知道
             if ((textWidth > maxTextWidth || textHeight > maxTextHeight) && fontSize <= minFontSize) {
-                log.warn("图片太小，无法添加水印: 图片尺寸 {}x{}, 水印尺寸 {}x{}", 
-                    image.getWidth(), image.getHeight(), textWidth, textHeight);
-                return image;
+                throw new IllegalStateException(String.format(
+                    "图片太小，无法添加水印: 图片尺寸 %dx%d, 水印尺寸 %dx%d",
+                    image.getWidth(), image.getHeight(), textWidth, textHeight));
             }
             
-            if (fontSize != config.fontSize()) {
-                log.debug("字体大小自动调整: {} -> {} (图片太小)", config.fontSize(), fontSize);
-            }
+            log.debug("最终字体大小: {}, 模式: {}", fontSize, config.fontSizeMode());
             
             // 设置颜色和透明度
             Color color = parseColor(config.color(), config.opacity());

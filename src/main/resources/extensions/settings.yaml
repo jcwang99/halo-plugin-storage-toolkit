@@ -4,12 +4,14 @@ metadata:
   name: storage-toolkit-settings
 spec:
   forms:
+    # ==================== 全局设置 ====================
     - group: global
       label: 全局设置
       formSchema:
+        # 图片处理
         - $formkit: group
           name: basic
-          label: 基本设置
+          label: 图片处理
           children:
             - $formkit: switch
               id: imageProcessingEnabled
@@ -28,8 +30,9 @@ spec:
             
             - $formkit: select
               if: "$get(imageProcessingEnabled).value"
-              name: targetPolicy
+              name: targetPolicies
               label: 目标存储策略
+              multiple: true
               clearable: true
               searchable: true
               placeholder: 选择存储策略（留空则处理所有策略）
@@ -38,7 +41,8 @@ spec:
                 method: GET
                 labelField: spec.displayName
                 valueField: metadata.name
-              help: 选择需要处理的存储策略，留空则处理所有策略
+              value: []
+              help: 选择需要处理的存储策略，可多选，留空则处理所有策略
             
             - $formkit: select
               if: "$get(imageProcessingEnabled).value"
@@ -55,14 +59,75 @@ spec:
                 valueField: metadata.name
               value: []
               help: 选择需要处理的分组，可多选，留空则处理所有分组
-
+            
+            - $formkit: number
+              if: "$get(imageProcessingEnabled).value"
+              name: imageProcessingConcurrency
+              label: 图片处理并发数
+              value: 3
+              min: 1
+              max: 10
+              help: 同时处理的图片数量，值越大处理越快但占用内存越多（1-10）
+        
+        # 附件分析
+        - $formkit: group
+          name: analysis
+          label: 附件分析
+          children:
+            - $formkit: select
+              name: excludeGroups
+              label: 排除分组
+              multiple: true
+              clearable: true
+              searchable: true
+              placeholder: 选择要排除的分组
+              action: /apis/storage.halo.run/v1alpha1/groups
+              requestOption:
+                method: GET
+                labelField: spec.displayName
+                valueField: metadata.name
+              value: []
+              help: 这些分组的附件不参与引用扫描和统计
+            
+            - $formkit: select
+              name: excludePolicies
+              label: 排除存储策略
+              multiple: true
+              clearable: true
+              searchable: true
+              placeholder: 选择要排除的存储策略
+              action: /apis/storage.halo.run/v1alpha1/policies
+              requestOption:
+                method: GET
+                labelField: spec.displayName
+                valueField: metadata.name
+              value: []
+              help: 这些存储策略的附件不参与引用扫描和统计
+            
+            - $formkit: number
+              name: duplicateScanConcurrency
+              label: 重复检测并发数
+              value: 4
+              min: 1
+              max: 10
+              help: MD5 计算的并发数，值越大扫描越快但占用资源越多（1-10）
+            
+            - $formkit: number
+              name: scanTimeoutMinutes
+              label: 扫描超时时间（分钟）
+              value: 5
+              min: 1
+              max: 30
+              help: 扫描超过此时间后视为超时，允许重新触发扫描
+        
+    # ==================== 图片处理 ====================
     - group: imageProcessing
       label: 图片处理
       formSchema:
-        # 文件过滤
+        # 过滤规则
         - $formkit: group
           name: fileFilter
-          label: 文件过滤
+          label: 过滤规则
           children:
             - $formkit: text
               name: allowedFormats
@@ -73,7 +138,7 @@ spec:
             - $formkit: number
               name: minFileSize
               label: 最小文件大小（KB）
-              value: 0
+              value: 50
               min: 0
               help: 仅处理大于此大小的文件，0 表示不限制
             
@@ -112,10 +177,30 @@ spec:
               id: outputQuality
               key: outputQuality
               label: 输出质量（数值越高质量越好，文件越大）
-              value: 85
+              value: 75
               min: 1
               max: 100
               help: $get(outputQuality).value
+            
+            - $formkit: switch
+              if: "$get(formatConversionEnabled).value === true"
+              id: skipIfLarger
+              key: skipIfLarger
+              name: skipIfLarger
+              label: 智能跳过
+              value: true
+              help: 当转换后体积增加超过阈值时，自动保留原格式。关闭后将强制转换为目标格式
+            
+            - $formkit: range
+              if: "$get(formatConversionEnabled).value === true && $get(skipIfLarger).value === true"
+              id: skipThreshold
+              key: skipThreshold
+              name: skipThreshold
+              label: "跳过阈值（转换后体积增加超过此比例才跳过，0 表示任何增加都跳过，推荐 5%）"
+              value: 0
+              min: 0
+              max: 50
+              help: $get(skipThreshold).value
 
         # 水印设置
         - $formkit: group
@@ -152,8 +237,32 @@ spec:
               label: 水印文字
               value: ""
             
-            - $formkit: number
+            - $formkit: radio
               if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT'"
+              id: fontSizeMode
+              key: fontSizeMode
+              name: fontSizeMode
+              label: 字体大小模式
+              value: FIXED
+              options:
+                - label: 固定大小
+                  value: FIXED
+                - label: 自适应
+                  value: ADAPTIVE
+            
+            - $formkit: range
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT' && $get(fontSizeMode).value === 'ADAPTIVE'"
+              id: fontScale
+              key: fontScale
+              name: fontScale
+              label: 字体缩放比例（图片宽度的 %）
+              value: 4
+              min: 1
+              max: 10
+              help: $get(fontScale).value
+            
+            - $formkit: number
+              if: "$get(watermarkEnabled).value === true && $get(watermarkType).value === 'TEXT' && $get(fontSizeMode).value === 'FIXED'"
               id: watermarkFontSize
               key: watermarkFontSize
               name: fontSize
@@ -179,6 +288,8 @@ spec:
               key: watermarkImageUrl
               label: 水印图片
               value: ""
+              accepts:
+                - image/*
               help: 上传或选择水印图片（支持 PNG、JPEG、WebP 格式）
             
             - $formkit: range
@@ -251,6 +362,64 @@ spec:
               max: 50
               help: $get(watermarkMarginY).value
 
+    # ==================== 附件分析 ====================
+    - group: analysis
+      label: 附件分析
+      formSchema:
+        - $formkit: group
+          name: referenceScanning
+          label: 引用扫描
+          children:
+            - $formkit: switch
+              id: scanPosts
+              key: scanPosts
+              name: scanPosts
+              label: 扫描文章
+              value: true
+              help: 扫描文章内容中的附件引用
+            
+            - $formkit: switch
+              id: scanPages
+              key: scanPages
+              name: scanPages
+              label: 扫描页面
+              value: true
+              help: 扫描独立页面内容中的附件引用
+            
+            - $formkit: switch
+              id: scanComments
+              key: scanComments
+              name: scanComments
+              label: 扫描评论
+              value: false
+              help: 扫描 Halo 内置评论中的附件引用（第三方评论插件无法扫描）
+            
+            - $formkit: switch
+              id: scanMoments
+              key: scanMoments
+              name: scanMoments
+              label: 扫描瞬间
+              value: false
+              help: 扫描瞬间插件中的附件引用（需安装瞬间插件）
+            
+            - $formkit: switch
+              id: scanPhotos
+              key: scanPhotos
+              name: scanPhotos
+              label: 扫描图库
+              value: false
+              help: 扫描图库插件中的附件引用（需安装图库插件）
+            
+            - $formkit: switch
+              id: scanDocs
+              key: scanDocs
+              name: scanDocs
+              label: 扫描文档
+              value: false
+              help: 扫描 Docsme 文档插件中的附件引用（需安装 Docsme 插件）
+
+
+    # ==================== 日志设置 ====================
     - group: log
       label: 日志设置
       formSchema:

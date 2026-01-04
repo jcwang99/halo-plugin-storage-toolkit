@@ -1,5 +1,6 @@
 package com.timxs.storagetoolkit.config;
 
+import com.timxs.storagetoolkit.model.FontSizeMode;
 import com.timxs.storagetoolkit.model.WatermarkPosition;
 import com.timxs.storagetoolkit.model.WatermarkType;
 import lombok.Data;
@@ -37,6 +38,16 @@ public class WatermarkConfig {
      * 字体大小（像素）
      */
     private int fontSize = 25;
+    
+    /**
+     * 字体大小模式（FIXED 或 ADAPTIVE）
+     */
+    private FontSizeMode fontSizeMode = FontSizeMode.FIXED;
+    
+    /**
+     * 字体缩放比例（自适应模式下使用，1-10%）
+     */
+    private int fontScale = 4;
     
     /**
      * 颜色（十六进制，如 #FFFFFF）

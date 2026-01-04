@@ -17,7 +17,7 @@ import java.util.List;
  * 处理日志 REST API 端点
  * 提供日志查询、统计和清空功能
  */
-@ApiVersion("storage-toolkit.timxs.com/v1alpha1")
+@ApiVersion("console.api.storage-toolkit.timxs.com/v1alpha1")
 @RestController
 @RequestMapping("/processinglogs")
 @RequiredArgsConstructor
@@ -42,12 +42,12 @@ public class ProcessingLogEndpoint {
      */
     @GetMapping
     public Mono<ProcessingLogListResult> list(
-        @RequestParam(value = "filename", required = false) String filename,
-        @RequestParam(value = "status", required = false) String status,
-        @RequestParam(value = "startTime", required = false) String startTime,
-        @RequestParam(value = "endTime", required = false) String endTime,
-        @RequestParam(value = "page", defaultValue = "1") int page,
-        @RequestParam(value = "size", defaultValue = "20") int size
+        @RequestParam(required = false) String filename,
+        @RequestParam(required = false) String status,
+        @RequestParam(required = false) String startTime,
+        @RequestParam(required = false) String endTime,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size
     ) {
         // 解析状态枚举
         ProcessingStatus statusEnum = null;
@@ -118,7 +118,7 @@ public class ProcessingLogEndpoint {
      *
      * @return 删除结果
      */
-    @DeleteMapping("/all")
+    @DeleteMapping
     public Mono<DeleteResult> deleteAll() {
         return processingLogService.deleteAll()
             .map(count -> {

@@ -1,9 +1,14 @@
 package com.timxs.storagetoolkit;
 
+import com.timxs.storagetoolkit.extension.AttachmentReference;
+import com.timxs.storagetoolkit.extension.DuplicateGroup;
+import com.timxs.storagetoolkit.extension.DuplicateScanStatus;
 import com.timxs.storagetoolkit.extension.ProcessingLog;
+import com.timxs.storagetoolkit.extension.ReferenceScanStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import run.halo.app.extension.SchemeManager;
+import run.halo.app.extension.index.IndexSpec;
 import run.halo.app.plugin.BasePlugin;
 import run.halo.app.plugin.PluginContext;
 
@@ -13,6 +18,8 @@ import javax.imageio.spi.ImageReaderSpi;
 import javax.imageio.spi.ImageWriterSpi;
 import java.util.ArrayList;
 import java.util.List;
+
+import static run.halo.app.extension.index.IndexAttributeFactory.simpleAttribute;
 
 /**
  * Storage Toolkit 插件主类
@@ -57,6 +64,23 @@ public class StorageToolkitPlugin extends BasePlugin {
         // 注册 ProcessingLog Extension
         schemeManager.register(ProcessingLog.class);
 
+        // 注册 AttachmentReference Extension（带索引）
+        schemeManager.register(AttachmentReference.class, indexSpecs -> {
+            indexSpecs.add(new IndexSpec()
+                .setName("spec.attachmentName")
+                .setIndexFunc(simpleAttribute(AttachmentReference.class,
+                    ref -> ref.getSpec() != null ? ref.getSpec().getAttachmentName() : null)));
+        });
+
+        // 注册 ReferenceScanStatus Extension
+        schemeManager.register(ReferenceScanStatus.class);
+
+        // 注册 DuplicateScanStatus Extension
+        schemeManager.register(DuplicateScanStatus.class);
+
+        // 注册 DuplicateGroup Extension
+        schemeManager.register(DuplicateGroup.class);
+
         // 手动注册 WebP ImageIO SPI（解决插件类加载器隔离问题）
         registerWebPImageIO();
 
@@ -76,6 +100,10 @@ public class StorageToolkitPlugin extends BasePlugin {
 
         // 取消注册 Extension
         schemeManager.unregister(schemeManager.get(ProcessingLog.class));
+        schemeManager.unregister(schemeManager.get(AttachmentReference.class));
+        schemeManager.unregister(schemeManager.get(ReferenceScanStatus.class));
+        schemeManager.unregister(schemeManager.get(DuplicateScanStatus.class));
+        schemeManager.unregister(schemeManager.get(DuplicateGroup.class));
 
         log.info("Storage Toolkit 插件已停止");
     }

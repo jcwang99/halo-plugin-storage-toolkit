@@ -62,13 +62,23 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
     private final DefaultDataBufferFactory bufferFactory = new DefaultDataBufferFactory();
     
     private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = 
-        new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        run.halo.app.infra.utils.JsonUtils.mapper();
 
     /**
-     * 并发处理限制，最多同时处理 3 张图片
-     * 防止多用户同时上传大图导致内存溢出
+     * 默认并发处理数
      */
-    private static final Semaphore PROCESSING_PERMITS = new Semaphore(3);
+    private static final int DEFAULT_PROCESSING_CONCURRENCY = 3;
+
+    /**
+     * 并发处理限制信号量
+     * 使用 volatile 确保多线程可见性
+     */
+    private volatile Semaphore processingPermits = new Semaphore(DEFAULT_PROCESSING_CONCURRENCY);
+    
+    /**
+     * 当前配置的并发数
+     */
+    private volatile int currentConcurrency = DEFAULT_PROCESSING_CONCURRENCY;
 
     /**
      * 控制台编辑器上传路径匹配器（新版 Console API - Halo 2.22+）
@@ -94,6 +104,30 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
     private static final String SOURCE_ATTACHMENT_MANAGER = "attachment-manager";
     private static final String SOURCE_CONSOLE_EDITOR = "console-editor";
     private static final String SOURCE_UC_EDITOR = "uc-editor";
+
+    /**
+     * 获取处理许可的 Semaphore
+     * 如果配置的并发数发生变化，会重建 Semaphore
+     */
+    private Semaphore getProcessingPermits(ProcessingConfig config) {
+        int configuredConcurrency = config.getImageProcessingConcurrency();
+        if (configuredConcurrency < 1) {
+            configuredConcurrency = DEFAULT_PROCESSING_CONCURRENCY;
+        } else if (configuredConcurrency > 10) {
+            configuredConcurrency = 10;
+        }
+        
+        if (configuredConcurrency != currentConcurrency) {
+            synchronized (this) {
+                if (configuredConcurrency != currentConcurrency) {
+                    log.info("图片处理并发数配置变更: {} -> {}", currentConcurrency, configuredConcurrency);
+                    currentConcurrency = configuredConcurrency;
+                    processingPermits = new Semaphore(configuredConcurrency);
+                }
+            }
+        }
+        return processingPermits;
+    }
 
     @Override
     @NonNull
@@ -214,8 +248,9 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                 }
 
                 // 获取处理许可，限制并发数
+                Semaphore permits = getProcessingPermits(config);
                 return Mono.fromCallable(() -> {
-                        PROCESSING_PERMITS.acquire();
+                        permits.acquire();
                         return true;
                     })
                     .subscribeOn(Schedulers.boundedElastic())
@@ -258,7 +293,7 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                                 });
                         })
                     )
-                    .doFinally(signal -> PROCESSING_PERMITS.release());
+                    .doFinally(signal -> permits.release());
             });
     }
 
@@ -455,8 +490,9 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
         }
 
         // 获取处理许可，限制并发数
+        Semaphore permits = getProcessingPermits(config);
         return Mono.fromCallable(() -> {
-                PROCESSING_PERMITS.acquire();
+                permits.acquire();
                 return true;
             })
             .subscribeOn(Schedulers.boundedElastic())
@@ -507,14 +543,15 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                         });
                 })
             )
-            .doFinally(signal -> PROCESSING_PERMITS.release());
+            .doFinally(signal -> permits.release());
     }
 
     private boolean shouldProcessForConfig(ProcessingConfig config, String policyName, String groupName) {
-        String targetPolicy = config.getTargetPolicy();
-        if (targetPolicy != null && !targetPolicy.isBlank()) {
-            if (!targetPolicy.equals(policyName)) {
-                log.debug("Policy mismatch: target={}, current={}", targetPolicy, policyName);
+        List<String> targetPolicies = config.getTargetPolicies();
+        if (targetPolicies != null && !targetPolicies.isEmpty()) {
+            String currentPolicy = policyName != null ? policyName : "";
+            if (!targetPolicies.contains(currentPolicy)) {
+                log.debug("Policy mismatch: targetPolicies={}, currentPolicy={}", targetPolicies, currentPolicy);
                 return false;
             }
         }

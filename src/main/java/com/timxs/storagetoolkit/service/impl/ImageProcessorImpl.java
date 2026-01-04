@@ -208,6 +208,11 @@ public class ImageProcessorImpl implements ImageProcessor {
             String currentContentType = contentType;
             boolean processed = false;
             StringBuilder errorMessages = new StringBuilder();
+            
+            // 新增：智能跳过相关变量
+            boolean formatConversionSkipped = false;
+            String skipReason = null;
+            boolean watermarkApplied = false;
 
             // 步骤1：添加水印
             WatermarkConfig watermarkConfig = config.getWatermark();
@@ -215,6 +220,7 @@ public class ImageProcessorImpl implements ImageProcessor {
                 try {
                     image = applyWatermark(image, watermarkConfig);
                     processed = true;
+                    watermarkApplied = true;
                     log.debug("水印添加成功: {}", originalFilename);
                 } catch (Exception e) {
                     log.warn("水印添加失败: {}", e.getMessage());
@@ -227,13 +233,73 @@ public class ImageProcessorImpl implements ImageProcessor {
             if (config.getFormatConversion().isEnabled()) {
                 try {
                     var formatConfig = config.getFormatConversion();
-                    resultData = formatConverter.convert(image, formatConfig.getTargetFormat(), 
+                    byte[] convertedData = formatConverter.convert(image, formatConfig.getTargetFormat(), 
                         formatConfig.getOutputQuality());
-                    currentFilename = formatConverter.updateFilenameExtension(currentFilename, 
-                        formatConfig.getTargetFormat());
-                    currentContentType = formatConverter.getMimeType(formatConfig.getTargetFormat());
-                    processed = true;
-                    log.debug("格式转换成功: {} -> {}", originalFilename, currentFilename);
+                    
+                    // 计算体积增加比例
+                    double increaseRatio = (double)(convertedData.length - imageData.length) / imageData.length * 100;
+                    int threshold = formatConfig.getSkipThreshold();
+                    
+                    // 智能跳过逻辑：比较转换后体积与原始上传体积，考虑容错比例
+                    if (formatConfig.isSkipIfLarger() && increaseRatio > threshold) {
+                        // 转换后体积增加超过阈值，保留原格式
+                        log.info("智能跳过格式转换: {} 体积 ({}) > 原始体积 ({})，增加 {}% 超过阈值 {}%", 
+                            formatConfig.getTargetFormat(),
+                            formatFileSize(convertedData.length), 
+                            formatFileSize(imageData.length),
+                            String.format("%.1f", increaseRatio),
+                            threshold);
+                        
+                        // 如果有水印，需要重新编码为原格式；否则直接使用原始数据避免二次压缩损失
+                        if (watermarkApplied) {
+                            resultData = imageToBytes(image, contentType);
+                        } else {
+                            resultData = imageData;
+                        }
+                        // 保持原文件名和 contentType（不修改 currentFilename 和 currentContentType）
+                        
+                        // 标记格式转换被跳过
+                        formatConversionSkipped = true;
+                        skipReason = String.format("格式转换跳过: %s 体积 (%s) > 原始体积 (%s)，增加 %.1f%% 超过阈值 %d%%",
+                            formatConfig.getTargetFormat(),
+                            formatFileSize(convertedData.length),
+                            formatFileSize(imageData.length),
+                            increaseRatio,
+                            threshold);
+                    } else {
+                        // 使用转换后的数据
+                        resultData = convertedData;
+                        currentFilename = formatConverter.updateFilenameExtension(currentFilename, 
+                            formatConfig.getTargetFormat());
+                        currentContentType = formatConverter.getMimeType(formatConfig.getTargetFormat());
+                        processed = true;
+                        
+                        // 记录压缩效果
+                        if (convertedData.length <= imageData.length) {
+                            if (convertedData.length < imageData.length) {
+                                double reduction = (1.0 - (double)convertedData.length / imageData.length) * 100;
+                                log.debug("格式转换成功: {} -> {}, 体积减少 {}%", 
+                                    originalFilename, currentFilename, String.format("%.1f", reduction));
+                            } else {
+                                // 体积相等
+                                log.debug("格式转换成功: {} -> {}, 体积不变", 
+                                    originalFilename, currentFilename);
+                            }
+                        } else if (increaseRatio > 0) {
+                            // 体积增加但在阈值内，记录 DEBUG 日志
+                            log.debug("格式转换成功: {} -> {}, 体积增加 {}% (在阈值 {}% 内)", 
+                                originalFilename, currentFilename, 
+                                String.format("%.1f", increaseRatio), threshold);
+                        }
+                        
+                        // 强制转换模式下体积增加的警告
+                        if (!formatConfig.isSkipIfLarger() && increaseRatio > 0) {
+                            log.warn("格式转换完成，但体积增加: {} → {} (+{}%)",
+                                formatFileSize(imageData.length),
+                                formatFileSize(convertedData.length),
+                                String.format("%.1f", increaseRatio));
+                        }
+                    }
                 } catch (Exception e) {
                     log.warn("格式转换失败: {}", e.getMessage());
                     errorMessages.append("格式转换失败: ").append(e.getMessage()).append("; ");
@@ -246,8 +312,30 @@ public class ImageProcessorImpl implements ImageProcessor {
             }
 
             // 返回结果
-            if (!processed) {
+            // 有错误但没有任何成功的处理 → FAILED
+            if (!processed && !formatConversionSkipped && errorMessages.length() > 0) {
+                return ProcessingResult.failed(imageData, originalFilename, contentType, 
+                    errorMessages.toString());
+            }
+            
+            if (!processed && !formatConversionSkipped) {
                 return ProcessingResult.skipped(imageData, originalFilename, contentType, "没有执行任何处理");
+            }
+            
+            // 智能跳过 + 无水印处理 + 有错误 → FAILED（水印失败+转换跳过的情况）
+            if (formatConversionSkipped && !watermarkApplied && errorMessages.length() > 0) {
+                return ProcessingResult.failed(imageData, originalFilename, contentType, 
+                    errorMessages.toString());
+            }
+            
+            // 智能跳过 + 无其他处理 → SKIPPED，直接返回原始数据（避免重新编码）
+            if (formatConversionSkipped && !watermarkApplied) {
+                return ProcessingResult.skipped(imageData, originalFilename, contentType, skipReason);
+            }
+            
+            // 智能跳过 + 有水印 → PARTIAL，返回水印后的原格式数据
+            if (formatConversionSkipped && watermarkApplied) {
+                return ProcessingResult.partial(resultData, currentFilename, currentContentType, skipReason);
             }
 
             // 有错误信息则返回 PARTIAL 状态
