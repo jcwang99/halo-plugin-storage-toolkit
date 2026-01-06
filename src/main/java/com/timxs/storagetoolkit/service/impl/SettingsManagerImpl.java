@@ -154,6 +154,12 @@ public class SettingsManagerImpl implements SettingsManager {
                     // 跳过阈值（0-50%）
                     int threshold = getInt(formatNode, "skipThreshold", 0);
                     format.setSkipThreshold(Math.max(0, Math.min(50, threshold)));
+                    
+                    // 压缩等级配置
+                    int webpEffort = getInt(formatNode, "webpEffort", 4);
+                    format.setWebpEffort(Math.max(0, Math.min(6, webpEffort)));
+                    int avifEffort = getInt(formatNode, "avifEffort", 4);
+                    format.setAvifEffort(Math.max(0, Math.min(10, avifEffort)));
                 }
                 
                 // 水印设置（嵌套在 watermark 下）

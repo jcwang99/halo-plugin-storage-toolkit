@@ -6,7 +6,7 @@
 
 Halo 存储增强插件，支持图片格式转换、水印添加等功能，帮助优化网站图片加载性能。
 
-![处理日志示例](docs/doc_sample1.png)
+![处理日志示例](docs/doc_sample2.png)
 
 ## 功能特性
 
@@ -128,8 +128,8 @@ pnpm dev
 
 ## 许可证
 
-[GPL-3.0](./LICENSE) © Tim0x0
+[GPL-3.0](./LICENSE) © [Tim0x0](https://github.com/Tim0x0/)
 
 ## 作者
 
-**Tim** - [blog.timxs.com](https://blog.timxs.com)
+**[Tim](https://blog.timxs.com)**

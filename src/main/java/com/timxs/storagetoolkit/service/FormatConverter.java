@@ -16,9 +16,10 @@ public interface FormatConverter {
      * @param image        BufferedImage 对象
      * @param targetFormat 目标格式
      * @param quality      输出质量（0-100，对有损格式有效）
+     * @param effort       压缩等级（WebP: 0-6, AVIF: 0-10）
      * @return 转换后的字节数组
      */
-    byte[] convert(BufferedImage image, ImageFormat targetFormat, int quality);
+    byte[] convert(BufferedImage image, ImageFormat targetFormat, int quality, int effort);
 
     /**
      * 检查是否支持指定格式

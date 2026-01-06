@@ -37,4 +37,16 @@ public class FormatConversionConfig {
      * 默认为 0，即任何体积增加都跳过
      */
     private int skipThreshold = 0;
+    
+    /**
+     * WebP 压缩等级（0-6）
+     * 值越大压缩越慢但文件越小，默认 4
+     */
+    private int webpEffort = 4;
+    
+    /**
+     * AVIF 压缩等级（0-10）
+     * 值越大压缩越慢但文件越小，默认 4
+     */
+    private int avifEffort = 4;
 }

@@ -164,6 +164,8 @@ spec:
             
             - $formkit: radio
               if: "$get(formatConversionEnabled).value === true"
+              id: targetFormat
+              key: targetFormat
               name: targetFormat
               label: 目标格式
               value: WEBP
@@ -172,6 +174,28 @@ spec:
                   value: WEBP
                 - label: AVIF（压缩率更高，兼容性稍差）
                   value: AVIF
+
+            - $formkit: range
+              if: "$get(formatConversionEnabled).value === true && $get(targetFormat).value === 'WEBP'"
+              id: webpEffort
+              key: webpEffort
+              name: webpEffort
+              label: "WebP 压缩等级（值越大，压缩越慢，但文件越小）"
+              value: 4
+              min: 0
+              max: 6
+              help: $get(webpEffort).value
+            
+            - $formkit: range
+              if: "$get(formatConversionEnabled).value === true && $get(targetFormat).value === 'AVIF'"
+              id: avifEffort
+              key: avifEffort
+              name: avifEffort
+              label: "AVIF 压缩等级（值越大，压缩越慢，但文件越小）"
+              value: 4
+              min: 0
+              max: 10
+              help: $get(avifEffort).value
             
             - $formkit: range
               if: "$get(formatConversionEnabled).value === true"

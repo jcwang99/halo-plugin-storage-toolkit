@@ -233,8 +233,12 @@ public class ImageProcessorImpl implements ImageProcessor {
             if (config.getFormatConversion().isEnabled()) {
                 try {
                     var formatConfig = config.getFormatConversion();
+                    // 根据目标格式选择对应的 effort 值
+                    int effort = formatConfig.getTargetFormat() == com.timxs.storagetoolkit.model.ImageFormat.AVIF 
+                        ? formatConfig.getAvifEffort() 
+                        : formatConfig.getWebpEffort();
                     byte[] convertedData = formatConverter.convert(image, formatConfig.getTargetFormat(), 
-                        formatConfig.getOutputQuality());
+                        formatConfig.getOutputQuality(), effort);
                     
                     // 计算体积增加比例
                     double increaseRatio = (double)(convertedData.length - imageData.length) / imageData.length * 100;

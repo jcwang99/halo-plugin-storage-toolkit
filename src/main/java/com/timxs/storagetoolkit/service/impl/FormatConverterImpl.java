@@ -1,5 +1,7 @@
 package com.timxs.storagetoolkit.service.impl;
 
+import com.github.avifimageio.AvifWriteParam;
+import com.luciad.imageio.webp.WebPWriteParam;
 import com.timxs.storagetoolkit.model.ImageFormat;
 import com.timxs.storagetoolkit.service.FormatConverter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,13 +43,14 @@ public class FormatConverterImpl implements FormatConverter {
      * @param image        BufferedImage 对象
      * @param targetFormat 目标格式（不能是 ORIGINAL）
      * @param quality      输出质量（0-100）
+     * @param effort       压缩等级（WebP: 0-6, AVIF: 0-10）
      * @return 转换后的字节数组
      * @throws IllegalArgumentException      图片为空或目标格式无效
      * @throws UnsupportedOperationException 不支持的格式
      * @throws RuntimeException              转换失败
      */
     @Override
-    public byte[] convert(BufferedImage image, ImageFormat targetFormat, int quality) {
+    public byte[] convert(BufferedImage image, ImageFormat targetFormat, int quality, int effort) {
         // 参数校验
         if (image == null) {
             throw new IllegalArgumentException("Image cannot be null");
@@ -59,8 +62,8 @@ public class FormatConverterImpl implements FormatConverter {
             throw new UnsupportedOperationException("Format not supported: " + targetFormat);
         }
 
-        log.debug("开始格式转换，输入图片尺寸: {}x{}, 类型: {}, 目标格式: {}, 质量: {}", 
-            image.getWidth(), image.getHeight(), image.getType(), targetFormat, quality);
+        log.debug("开始格式转换，输入图片尺寸: {}x{}, 类型: {}, 目标格式: {}, 质量: {}, 压缩等级: {}", 
+            image.getWidth(), image.getHeight(), image.getType(), targetFormat, quality, effort);
 
         // 统一转换为 RGB 格式（去除 Alpha 通道），这是最主流的做法
         BufferedImage rgbImage = convertToRGB(image);
@@ -111,6 +114,9 @@ public class FormatConverterImpl implements FormatConverter {
                     param.setCompressionQuality(quality / 100.0f);
                 }
                 
+                // 设置压缩等级（effort/speed）
+                setEffortParam(param, targetFormat, effort);
+                
                 // 执行写入
                 writer.write(null, new IIOImage(rgbImage, null, null), param);
             } finally {
@@ -154,6 +160,29 @@ public class FormatConverterImpl implements FormatConverter {
         g.drawImage(src, 0, 0, null);
         g.dispose();
         return rgb;
+    }
+
+    /**
+     * 设置压缩等级参数
+     * WebP 使用 method 参数（0-6），AVIF 使用 speed 参数（0-10，需要转换：speed = 10 - effort）
+     *
+     * @param param        ImageWriteParam 对象
+     * @param targetFormat 目标格式
+     * @param effort       压缩等级
+     */
+    private void setEffortParam(ImageWriteParam param, ImageFormat targetFormat, int effort) {
+        if (targetFormat == ImageFormat.WEBP && param instanceof WebPWriteParam webpParam) {
+            // method 范围 0-6，值越大压缩越慢但文件越小
+            int webpMethod = Math.max(0, Math.min(6, effort));
+            webpParam.setMethod(webpMethod);
+            log.debug("WebP 压缩等级设置为: {}", webpMethod);
+        } else if (targetFormat == ImageFormat.AVIF && param instanceof AvifWriteParam avifParam) {
+            // speed 范围 0-10，值越小压缩越慢但文件越小
+            // 转换公式：speed = 10 - effort
+            int avifSpeed = 10 - Math.max(0, Math.min(10, effort));
+            avifParam.setSpeed(avifSpeed);
+            log.debug("AVIF 压缩等级设置为: {} (speed={})", effort, avifSpeed);
+        }
     }
 
     /**
