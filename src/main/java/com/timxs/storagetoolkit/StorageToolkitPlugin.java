@@ -81,8 +81,8 @@ public class StorageToolkitPlugin extends BasePlugin {
         // 注册 DuplicateGroup Extension
         schemeManager.register(DuplicateGroup.class);
 
-        // 手动注册 WebP ImageIO SPI（解决插件类加载器隔离问题）
-        registerWebPImageIO();
+        // 手动注册 ImageIO SPI（解决插件类加载器隔离问题）
+        registerImageIOSpi();
 
         log.info("Storage Toolkit 插件启动成功！");
     }
@@ -95,8 +95,8 @@ public class StorageToolkitPlugin extends BasePlugin {
     public void stop() {
         log.info("Storage Toolkit 插件停止中...");
 
-        // 注销 WebP ImageIO SPI
-        unregisterWebPImageIO();
+        // 注销 ImageIO SPI
+        unregisterImageIOSpi();
 
         // 取消注册 Extension
         schemeManager.unregister(schemeManager.get(ProcessingLog.class));
@@ -109,50 +109,50 @@ public class StorageToolkitPlugin extends BasePlugin {
     }
 
     /**
-     * 手动注册 WebP ImageIO SPI
+     * 手动注册 ImageIO SPI（WebP 和 AVIF）
      * 由于 Halo 插件使用独立的类加载器，ImageIO 的 SPI 自动发现机制可能失效
      * 需要手动使用插件的类加载器加载并注册 SPI
      */
-    private void registerWebPImageIO() {
+    private void registerImageIOSpi() {
+        ClassLoader pluginClassLoader = this.getClass().getClassLoader();
+        IIORegistry registry = IIORegistry.getDefaultInstance();
+
+        // 预加载 WebP 相关类，解决运行时 NoClassDefFoundError
+        preloadWebPClasses(pluginClassLoader);
+        
+        // 预加载 AVIF 相关类
+        preloadAvifClasses(pluginClassLoader);
+
+        // 注册 WebP SPI
+        registerSpi(registry, pluginClassLoader, "com.luciad.imageio.webp.WebPImageReaderSpi", ImageReaderSpi.class, "WebP");
+        registerSpi(registry, pluginClassLoader, "com.luciad.imageio.webp.WebPImageWriterSpi", ImageWriterSpi.class, "WebP");
+
+        // 注册 AVIF SPI
+        registerSpi(registry, pluginClassLoader, "com.github.avifimageio.AvifImageReaderSpi", ImageReaderSpi.class, "AVIF");
+        registerSpi(registry, pluginClassLoader, "com.github.avifimageio.AvifImageWriterSpi", ImageWriterSpi.class, "AVIF");
+    }
+
+    /**
+     * 注册单个 SPI
+     */
+    private <T extends IIOServiceProvider> void registerSpi(IIORegistry registry, ClassLoader classLoader, 
+            String className, Class<T> spiType, String formatName) {
         try {
-            ClassLoader pluginClassLoader = this.getClass().getClassLoader();
-            IIORegistry registry = IIORegistry.getDefaultInstance();
-
-            // 预加载 WebP 相关类，解决运行时 NoClassDefFoundError
-            preloadWebPClasses(pluginClassLoader);
-
-            // 注册 WebP ImageReaderSpi
-            try {
-                Class<?> readerSpiClass = pluginClassLoader.loadClass("com.luciad.imageio.webp.WebPImageReaderSpi");
-                ImageReaderSpi readerSpi = (ImageReaderSpi) readerSpiClass.getDeclaredConstructor().newInstance();
-                registry.registerServiceProvider(readerSpi);
-                registeredSpis.add(readerSpi);
-                log.info("WebP ImageReaderSpi 注册成功: {}", readerSpiClass.getName());
-            } catch (Exception e) {
-                log.warn("WebP ImageReaderSpi 注册失败: {}", e.getMessage());
-            }
-
-            // 注册 WebP ImageWriterSpi
-            try {
-                Class<?> writerSpiClass = pluginClassLoader.loadClass("com.luciad.imageio.webp.WebPImageWriterSpi");
-                ImageWriterSpi writerSpi = (ImageWriterSpi) writerSpiClass.getDeclaredConstructor().newInstance();
-                registry.registerServiceProvider(writerSpi);
-                registeredSpis.add(writerSpi);
-                log.info("WebP ImageWriterSpi 注册成功: {}", writerSpiClass.getName());
-            } catch (Exception e) {
-                log.warn("WebP ImageWriterSpi 注册失败: {}", e.getMessage());
-            }
-
+            Class<?> spiClass = classLoader.loadClass(className);
+            T spi = spiType.cast(spiClass.getDeclaredConstructor().newInstance());
+            registry.registerServiceProvider(spi);
+            registeredSpis.add(spi);
+            log.info("{} {} 注册成功", formatName, spiType.getSimpleName());
         } catch (Exception e) {
-            log.error("WebP ImageIO SPI 注册过程出错", e);
+            log.warn("{} {} 注册失败: {}", formatName, spiType.getSimpleName(), e.getMessage());
         }
     }
     
     /**
-     * 注销 WebP ImageIO SPI
+     * 注销 ImageIO SPI
      * 插件停止时调用，避免类加载器泄漏
      */
-    private void unregisterWebPImageIO() {
+    private void unregisterImageIOSpi() {
         if (registeredSpis.isEmpty()) {
             return;
         }
@@ -169,7 +169,7 @@ public class StorageToolkitPlugin extends BasePlugin {
             }
             registeredSpis.clear();
         } catch (Exception e) {
-            log.error("WebP ImageIO SPI 注销过程出错", e);
+            log.error("ImageIO SPI 注销过程出错", e);
         }
     }
     
@@ -194,6 +194,56 @@ public class StorageToolkitPlugin extends BasePlugin {
             } catch (ClassNotFoundException e) {
                 log.warn("预加载 WebP 类失败: {}", className);
             }
+        }
+    }
+    
+    /**
+     * 预加载 AVIF 相关类并初始化 native 库
+     * 必须在正确的 ClassLoader 上下文中触发 native 库加载
+     */
+    private void preloadAvifClasses(ClassLoader classLoader) {
+        // 保存原来的 contextClassLoader
+        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+        try {
+            // 设置插件的 ClassLoader，让 avif-imageio 能找到 native 库资源
+            Thread.currentThread().setContextClassLoader(classLoader);
+            
+            // 加载 Avif 类并触发 native 库初始化
+            Class<?> avifClass = classLoader.loadClass("com.github.avifimageio.Avif");
+            // 调用 isAvailable() 触发 native 库加载
+            var isAvailableMethod = avifClass.getMethod("isAvailable");
+            boolean available = (boolean) isAvailableMethod.invoke(null);
+            
+            if (available) {
+                log.info("AVIF native 库加载成功");
+            } else {
+                // 获取加载错误信息
+                var getLoadErrorMethod = avifClass.getMethod("getLoadError");
+                Throwable error = (Throwable) getLoadErrorMethod.invoke(null);
+                log.warn("AVIF native 库加载失败: {}", error != null ? error.getMessage() : "unknown");
+            }
+            
+            // 预加载其他 AVIF 相关类
+            String[] classNames = {
+                "com.github.avifimageio.AvifImageReader",
+                "com.github.avifimageio.AvifImageWriter",
+                "com.github.avifimageio.AvifWriteParam",
+                "com.github.avifimageio.AvifEncoderOptions",
+                "com.github.avifimageio.AvifDecoderOptions"
+            };
+            
+            for (String className : classNames) {
+                try {
+                    classLoader.loadClass(className);
+                } catch (ClassNotFoundException e) {
+                    log.warn("预加载 AVIF 类失败: {}", className);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("AVIF 初始化失败: {}", e.getMessage());
+        } finally {
+            // 恢复原来的 contextClassLoader
+            Thread.currentThread().setContextClassLoader(originalClassLoader);
         }
     }
 }

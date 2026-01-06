@@ -30,7 +30,8 @@ public class FormatConverterImpl implements FormatConverter {
      * 目前仅支持 WebP 格式
      */
     private static final Set<ImageFormat> SUPPORTED_FORMATS = Set.of(
-        ImageFormat.WEBP
+        ImageFormat.WEBP,
+        ImageFormat.AVIF
     );
 
     /**

@@ -239,7 +239,7 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                 long contentLength = filePart.headers().getContentLength();
                 long maxFileSize = config.getMaxFileSize();
                 if (maxFileSize > 0 && contentLength > 0 && contentLength > maxFileSize) {
-                    log.info("File size {} exceeds max limit {}, skip processing: {}", 
+                    log.debug("File size {} exceeds max limit {}, skip processing: {}", 
                         contentLength, maxFileSize, filename);
                     saveSkippedLog(filename, contentType, contentLength, startTime, 
                         "文件大小超过限制（提前检查）", source);
@@ -279,7 +279,7 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                                         return uploadAndRespond(attachConfig, filename, imageData, imageMediaType, auth, exchange);
                                     }
 
-                                    log.info("Image processed: {} -> {} ({} bytes -> {} bytes, {}% reduction)",
+                                    log.debug("Image processed: {} -> {} ({} bytes -> {} bytes, {}% reduction)",
                                         filename, result.filename(),
                                         originalSize, result.data().length,
                                         originalSize > 0 ? (100 - (result.data().length * 100 / originalSize)) : 0);
@@ -479,7 +479,7 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
         long contentLength = filePart.headers().getContentLength();
         long maxFileSize = config.getMaxFileSize();
         if (maxFileSize > 0 && contentLength > 0 && contentLength > maxFileSize) {
-            log.info("File size {} exceeds max limit {}, skip processing: {}", 
+            log.debug("File size {} exceeds max limit {}, skip processing: {}", 
                 contentLength, maxFileSize, filename);
             saveSkippedLog(filename, contentType, contentLength, startTime, 
                 "文件大小超过限制（提前检查）", source);
@@ -523,7 +523,7 @@ public class ImageProcessingWebFilter implements AdditionalWebFilter {
                                     .flatMap(chain::filter);
                             }
 
-                            log.info("Image processed: {} -> {} ({} bytes -> {} bytes, {}% reduction)",
+                            log.debug("Image processed: {} -> {} ({} bytes -> {} bytes, {}% reduction)",
                                 filename, result.filename(),
                                 originalSize, result.data().length,
                                 originalSize > 0 ? (100 - (result.data().length * 100 / originalSize)) : 0);

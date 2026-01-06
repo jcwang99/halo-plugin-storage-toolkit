@@ -243,7 +243,7 @@ public class ImageProcessorImpl implements ImageProcessor {
                     // 智能跳过逻辑：比较转换后体积与原始上传体积，考虑容错比例
                     if (formatConfig.isSkipIfLarger() && increaseRatio > threshold) {
                         // 转换后体积增加超过阈值，保留原格式
-                        log.info("智能跳过格式转换: {} 体积 ({}) > 原始体积 ({})，增加 {}% 超过阈值 {}%", 
+                        log.debug("智能跳过格式转换: {} 体积 ({}) > 原始体积 ({})，增加 {}% 超过阈值 {}%", 
                             formatConfig.getTargetFormat(),
                             formatFileSize(convertedData.length), 
                             formatFileSize(imageData.length),

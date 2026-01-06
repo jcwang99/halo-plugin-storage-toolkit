@@ -170,6 +170,8 @@ spec:
               options:
                 - label: WebP（推荐，兼容性好，压缩率高）
                   value: WEBP
+                - label: AVIF（压缩率更高，兼容性稍差）
+                  value: AVIF
             
             - $formkit: range
               if: "$get(formatConversionEnabled).value === true"

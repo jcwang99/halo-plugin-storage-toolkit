@@ -10,6 +10,8 @@ repositories {
     mavenCentral()
     // Halo snapshot 仓库 - 用于获取 2.22 测试版
     maven { url = 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    // JitPack 仓库 - 用于获取 avif-imageio
+    maven { url = 'https://jitpack.io' }
 }
 
 dependencies {
@@ -18,6 +20,8 @@ dependencies {
 
     // WebP 读写支持（BSD 许可证）
     implementation 'org.sejda.imageio:webp-imageio:0.1.6'
+    // AVIF 读写支持
+    implementation 'com.github.Tim0x0:avif-imageio:0.1.0'
 
     testImplementation 'run.halo.app:api'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

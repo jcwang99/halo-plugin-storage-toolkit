@@ -1,5 +1,7 @@
 package com.timxs.storagetoolkit.service.impl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.timxs.storagetoolkit.model.CategoryStats;
 import com.timxs.storagetoolkit.model.StatisticsData;
 import com.timxs.storagetoolkit.model.TotalStats;
@@ -15,6 +17,7 @@ import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ReactiveExtensionClient;
 import org.springframework.data.domain.Sort;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,9 +30,37 @@ import java.util.stream.Collectors;
 public class StatisticsServiceImpl implements StatisticsService {
 
     private final ReactiveExtensionClient client;
+    
+    /**
+     * 统计数据缓存，2分钟过期
+     */
+    private static final Cache<String, StatisticsData> statsCache = Caffeine.newBuilder()
+        .expireAfterWrite(Duration.ofMinutes(2))
+        .maximumSize(1)
+        .build();
+    
+    private static final String CACHE_KEY = "statistics";
 
     @Override
     public Mono<StatisticsData> getStatistics() {
+        // 优先从缓存获取
+        StatisticsData cached = statsCache.getIfPresent(CACHE_KEY);
+        if (cached != null) {
+            log.debug("Statistics cache hit");
+            return Mono.just(cached);
+        }
+        
+        // 缓存未命中，查询数据库
+        // 注意：并发请求可能同时触发查询，但结果都会被缓存，影响不大
+        log.debug("Statistics cache miss, fetching from database");
+        return doGetStatistics()
+            .doOnNext(data -> statsCache.put(CACHE_KEY, data));
+    }
+    
+    /**
+     * 实际获取统计数据的逻辑
+     */
+    private Mono<StatisticsData> doGetStatistics() {
         // 并行获取策略和分组名称映射
         Mono<Map<String, String>> policyNamesMono = client.listAll(Policy.class, ListOptions.builder().build(), Sort.unsorted())
             .collectMap(
